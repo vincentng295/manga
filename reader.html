@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đọc truyện của VincentNG295</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff3e3e;
+            --bg-dark: #050505;
+            --header-bg: rgba(15, 15, 15, 0.9);
+            --text-main: #eeeeee;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* HEADER */
+        .header {
+            padding: 0 5%;
+            height: 60px;
+            background: var(--header-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .header a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.3s;
+        }
+
+        .header a:hover {
+            color: var(--primary-color);
+        }
+
+        #manga-title {
+            font-size: 0.9rem;
+            color: #888;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* PROGRESS BAR */
+        .progress-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: transparent;
+            z-index: 99;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-color);
+            transition: width 0.2s ease;
+        }
+
+        /* READER AREA */
+        .reader {
+            max-width: 850px; /* Tối ưu cho đọc truyện tranh */
+            margin: 20px auto 100px auto;
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 0; /* Xóa khoảng cách giữa các trang nếu muốn đọc liền mạch */
+        }
+
+        .reader img {
+            width: 100%;
+            display: block;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            /* Hiệu ứng loading */
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+            /* Đặt min-height để giữ chỗ, tránh hiện tượng giật màn hình (layout shift) khi cuộn lúc ảnh đang nạp */
+            min-height: 300px; 
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .reader img.loaded {
+            opacity: 1;
+            transform: translateY(0);
+            min-height: auto;
+            background: transparent;
+        }
+
+        /* CONTACT MINI FOOTER */
+        .reader-footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #555;
+            font-size: 0.8rem;
+        }
+
+        /* BUTTONS */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--primary-color);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: 0.3s;
+            z-index: 100;
+        }
+
+        .back-to-top.show { opacity: 1; }
+
+        @media (max-width: 600px) {
+            .reader { padding: 0; }
+            .reader img { border-radius: 0; margin-bottom: 2px; }
+            #manga-title { display: none; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <a href="index.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Quay lại
+    </a>
+    <div id="manga-title">Đang tải...</div>
+    <div style="width: 80px;"></div> </div>
+
+<div class="progress-container">
+    <div id="progress-bar"></div>
+</div>
+
+<div class="reader" id="reader"></div>
+
+<div class="reader-footer">
+    <p>Bạn đang đọc truyện tại VincentNG295 Library</p>
+    <p>Contact: thevi917@gmail.com</p>
+</div>
+
+<div class="back-to-top" id="scrollTop" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const slug = params.get("slug");
+const container = document.getElementById('reader');
+const progressBar = document.getElementById('progress-bar');
+const titleDisplay = document.getElementById('manga-title');
+
+// --- CẤU HÌNH INDEXEDDB ---
+const DB_NAME = "MangaCacheDB";
+const DB_VERSION = 1;
+const STORE_NAME = "images";
+let db = null;
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('[Service Worker] Đăng ký thành công với phạm vi:', reg.scope))
+            .catch(err => console.error('[Service Worker] Đăng ký thất bại:', err));
+    });
+}
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME);
+            }
+        };
+
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            resolve(db);
+        };
+
+        request.onerror = (e) => reject("Không thể mở IndexedDB: " + e.target.error);
+    });
+}
+
+function getCacheImage(key) {
+    return new Promise((resolve) => {
+        if (!db) return resolve(null);
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+function setCacheImage(key, blob) {
+    if (!db) return;
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    store.put(blob, key);
+}
+
+// --- XỬ LÝ TẢI VÀ HIỂN THỊ ẢNH ---
+// Gỡ bỏ appendChild khỏi hàm async này để chặn lỗi bất đồng bộ đổi vị trí
+async function loadImage(slug, pageFile, imgElement) {
+    const cacheKey = `${slug}/${pageFile}`;
+    const targetUrl = `manga/${slug}/${pageFile}`;
+
+    try {
+        // 1. Kiểm tra bộ nhớ đệm IndexedDB
+        const cachedBlob = await getCacheImage(cacheKey);
+        
+        if (cachedBlob) {
+            imgElement.src = URL.createObjectURL(cachedBlob);
+        } else {
+            // 2. Chưa có cache -> Fetch từ server
+            const response = await fetch(targetUrl);
+            if (!response.ok) throw new Error("Mạng có sự cố khi tải ảnh");
+            const blob = await response.blob();
+            
+            setCacheImage(cacheKey, blob);
+            imgElement.src = URL.createObjectURL(blob);
+        }
+    } catch (error) {
+        console.error("Lỗi xử lý ảnh:", error);
+        imgElement.src = targetUrl; // Fallback link gốc
+    }
+}
+
+// --- CHƯƠNG TRÌNH CHÍNH ---
+if (!slug) {
+    container.innerHTML = "<div style='padding:50px; text-align:center'>❌ Không tìm thấy mã truyện!</div>";
+} else {
+    Promise.all([
+        initDB().catch(err => console.warn(err)),
+        fetch(`manga/${slug}/info.json`).then(res => {
+            if (!res.ok) throw new Error();
+            return res.json();
+        })
+    ])
+    .then(([_, data]) => {
+        document.title = "Đọc " + data.title + " | VincentNG295";
+        titleDisplay.innerText = data.title;
+
+        // BƯỚC ĐỔI MỚI: Tạo sẵn khung ảnh theo đúng thứ tự JSON trước
+        data.pages.forEach(p => {
+            const img = document.createElement('img');
+            img.alt = "Manga Page";
+            img.loading = "lazy";
+            
+            img.onload = () => {
+                img.classList.add("loaded");
+                if (img.src.startsWith('blob:')) {
+                    img.addEventListener('load', () => URL.revokeObjectURL(img.src), { once: true });
+                }
+            };
+            
+            // Đưa vào giao diện ngay lập tức để giữ đúng vị trí số trang (1, 2, 3...)
+            container.appendChild(img);
+
+            // Đưa thẻ img đã cố định vị trí vào hàm xử lý nạp data ngầm
+            loadImage(slug, p, img);
+        });
+    })
+    .catch(err => {
+        container.innerHTML = "<div style='padding:50px; text-align:center'>😰 Lỗi tải dữ liệu truyện. Vui lòng thử lại sau!</div>";
+    });
+}
+
+// Xử lý thanh tiến trình khi cuộn
+window.onscroll = function() {
+    let winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+    let height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    let scrolled = height > 0 ? (winScroll / height) * 100 : 0;
+    progressBar.style.width = scrolled + "%";
+
+    const btn = document.getElementById('scrollTop');
+    if (winScroll > 600) btn.classList.add('show');
+    else btn.classList.remove('show');
+};
+</script>
+
+</body>
+</html>
