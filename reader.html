@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đọc truyện</title>
+
+<style>
+body {
+  margin: 0;
+  background: radial-gradient(circle, #1a1a1a, #000);
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+/* header */
+.header {
+  padding: 15px;
+  background: #111;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header a {
+  color: white;
+  text-decoration: none;
+}
+
+/* reader */
+.reader {
+  max-width: 720px;
+  margin: auto;
+  padding: 10px;
+}
+
+.reader img {
+  width: 100%;
+  margin: 20px 0;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(255,255,255,0.1);
+
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.reader img.loaded {
+  opacity: 1;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <a href="index.html">← Quay lại</a>
+</div>
+
+<div class="reader" id="reader"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const slug = params.get("slug");
+
+if (!slug) {
+  document.body.innerHTML = "<p>Thiếu slug</p>";
+}
+
+fetch(`manga/${slug}/info.json`)
+  .then(res => res.json())
+  .then(data => {
+    const container = document.getElementById('reader');
+
+    document.title = data.title;
+
+    data.pages.forEach(p => {
+      const img = document.createElement('img');
+      img.src = `manga/${slug}/${p}`;
+      img.loading = "lazy";
+
+      img.onload = () => img.classList.add("loaded");
+
+      container.appendChild(img);
+    });
+  })
+  .catch(err => {
+    document.body.innerHTML += "<p style='padding:20px'>Không load được truyện</p>";
+  });
+</script>
+
+</body>
+</html>

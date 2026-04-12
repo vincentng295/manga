@@ -1,0 +1,67 @@
+name: Build Manga JSON
+
+on:
+  push:
+    paths:
+      - 'manga/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Generate JSON
+        run: |
+          python3 <<EOF
+          import os, json
+
+          manga_root = "manga"
+          manga_list = []
+
+          for folder in os.listdir(manga_root):
+              path = os.path.join(manga_root, folder)
+              if not os.path.isdir(path):
+                  continue
+
+              images = sorted([
+                  f for f in os.listdir(path)
+                  if f.lower().endswith((".jpg", ".png", ".webp"))
+              ])
+
+              info_path = os.path.join(path, "info.json")
+
+              if os.path.exists(info_path):
+                  with open(info_path) as f:
+                      info = json.load(f)
+              else:
+                  info = {
+                      "title": folder.replace("_", " ").title(),
+                      "slug": folder,
+                      "description": "",
+                      "cover": images[0] if images else "",
+                      "pages": images
+                  }
+
+                  with open(info_path, "w") as f:
+                      json.dump(info, f, indent=2, ensure_ascii=False)
+
+              manga_list.append({
+                  "title": info["title"],
+                  "slug": info["slug"],
+                  "cover": f"manga/{folder}/{info['cover']}"
+              })
+
+          with open("list_manga.json", "w") as f:
+              json.dump(manga_list, f, indent=2, ensure_ascii=False)
+          EOF
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Auto update manga JSON" || echo "No changes"
+          git push
