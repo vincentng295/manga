@@ -1,91 +1,215 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Đọc truyện</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đang tải truyện...</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff3e3e;
+            --bg-dark: #050505;
+            --header-bg: rgba(15, 15, 15, 0.9);
+            --text-main: #eeeeee;
+        }
 
-<style>
-body {
-  margin: 0;
-  background: radial-gradient(circle, #1a1a1a, #000);
-  color: white;
-  font-family: Arial, sans-serif;
-}
+        body {
+            margin: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
 
-/* header */
-.header {
-  padding: 15px;
-  background: #111;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
+        /* HEADER */
+        .header {
+            padding: 0 5%;
+            height: 60px;
+            background: var(--header-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
 
-.header a {
-  color: white;
-  text-decoration: none;
-}
+        .header a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.3s;
+        }
 
-/* reader */
-.reader {
-  max-width: 720px;
-  margin: auto;
-  padding: 10px;
-}
+        .header a:hover {
+            color: var(--primary-color);
+        }
 
-.reader img {
-  width: 100%;
-  margin: 20px 0;
-  border-radius: 10px;
-  box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        #manga-title {
+            font-size: 0.9rem;
+            color: #888;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-  opacity: 0;
-  transition: opacity 0.5s;
-}
+        /* PROGRESS BAR */
+        .progress-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: transparent;
+            z-index: 99;
+        }
 
-.reader img.loaded {
-  opacity: 1;
-}
-</style>
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--primary-color);
+            box-shadow: 0 0 10px var(--primary-color);
+            transition: width 0.2s ease;
+        }
+
+        /* READER AREA */
+        .reader {
+            max-width: 850px; /* Tối ưu cho đọc truyện tranh */
+            margin: 20px auto 100px auto;
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 0; /* Xóa khoảng cách giữa các trang nếu muốn đọc liền mạch */
+        }
+
+        .reader img {
+            width: 100%;
+            display: block;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            /* Hiệu ứng loading */
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .reader img.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* CONTACT MINI FOOTER */
+        .reader-footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #555;
+            font-size: 0.8rem;
+        }
+
+        /* BUTTONS */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--primary-color);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: 0.3s;
+            z-index: 100;
+        }
+
+        .back-to-top.show { opacity: 1; }
+
+        @media (max-width: 600px) {
+            .reader { padding: 0; }
+            .reader img { border-radius: 0; margin-bottom: 2px; }
+            #manga-title { display: none; }
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="header">
-  <a href="index.html">← Quay lại</a>
+    <a href="index.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Quay lại
+    </a>
+    <div id="manga-title">Đang tải...</div>
+    <div style="width: 80px;"></div> </div>
+
+<div class="progress-container">
+    <div id="progress-bar"></div>
 </div>
 
 <div class="reader" id="reader"></div>
 
+<div class="reader-footer">
+    <p>Bạn đang đọc truyện tại VincentNG295 Library</p>
+    <p>Contact: thevi917@gmail.com</p>
+</div>
+
+<div class="back-to-top" id="scrollTop" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+</div>
+
 <script>
 const params = new URLSearchParams(location.search);
 const slug = params.get("slug");
+const container = document.getElementById('reader');
+const progressBar = document.getElementById('progress-bar');
+const titleDisplay = document.getElementById('manga-title');
 
 if (!slug) {
-  document.body.innerHTML = "<p>Thiếu slug</p>";
+    container.innerHTML = "<div style='padding:50px; text-align:center'>❌ Không tìm thấy mã truyện!</div>";
+} else {
+    fetch(`manga/${slug}/info.json`)
+    .then(res => res.json())
+    .then(data => {
+        document.title = "Đọc " + data.title + " | VincentNG295";
+        titleDisplay.innerText = data.title;
+
+        data.pages.forEach(p => {
+            const img = document.createElement('img');
+            img.src = `manga/${slug}/${p}`;
+            img.loading = "lazy";
+            img.alt = "Manga Page";
+            
+            img.onload = () => img.classList.add("loaded");
+            container.appendChild(img);
+        });
+    })
+    .catch(err => {
+        container.innerHTML = "<div style='padding:50px; text-align:center'>😰 Lỗi tải dữ liệu truyện. Vui lòng thử lại sau!</div>";
+    });
 }
 
-fetch(`manga/${slug}/info.json`)
-  .then(res => res.json())
-  .then(data => {
-    const container = document.getElementById('reader');
+// Xử lý thanh tiến trình khi cuộn
+window.onscroll = function() {
+    let winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+    let height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    let scrolled = (winScroll / height) * 100;
+    progressBar.style.width = scrolled + "%";
 
-    document.title = data.title;
-
-    data.pages.forEach(p => {
-      const img = document.createElement('img');
-      img.src = `manga/${slug}/${p}`;
-      img.loading = "lazy";
-
-      img.onload = () => img.classList.add("loaded");
-
-      container.appendChild(img);
-    });
-  })
-  .catch(err => {
-    document.body.innerHTML += "<p style='padding:20px'>Không load được truyện</p>";
-  });
+    // Hiện nút back to top
+    const btn = document.getElementById('scrollTop');
+    if (winScroll > 600) btn.classList.add('show');
+    else btn.classList.remove('show');
+};
 </script>
 
 </body>

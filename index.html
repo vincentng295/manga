@@ -1,120 +1,193 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manga của VincentNG295</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manga của VincentNG295</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff3e3e;
+            --bg-color: #0a0a0a;
+            --card-bg: #161616;
+            --text-main: #ffffff;
+            --text-sub: #a0a0a0;
+            --accent-glow: rgba(255, 62, 62, 0.4);
+        }
 
-<style>
-body {
-  margin: 0;
-  background: #0f0f0f;
-  font-family: Arial, sans-serif;
-  color: white;
-}
+        body {
+            margin: 0;
+            background: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            line-height: 1.6;
+        }
 
-.title {
-  padding: 20px;
-  font-size: 24px;
-}
+        header {
+            padding: 40px 5%;
+            text-align: center;
+        }
 
-/* GRID */
-#manga-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 20px;
-  padding: 20px;
-}
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(45deg, #fff, var(--primary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
-/* CARD */
-.card {
-  background: #1a1a1a;
-  border-radius: 12px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: 0.3s;
-  position: relative;
-}
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 5% 100px 5%;
+        }
 
-.card:hover {
-  transform: scale(1.08);
-  z-index: 2;
-  box-shadow: 0 0 20px rgba(255,255,255,0.2);
-}
+        #manga-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 30px;
+        }
 
-/* IMAGE */
-.card img {
-  width: 100%;
-  height: 220px;
-  object-fit: cover;
-  transition: 0.3s;
-}
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid rgba(255,255,255,0.05);
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
 
-.card:hover img {
-  transform: scale(1.1);
-}
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5), 0 0 15px var(--accent-glow);
+            border-color: var(--primary-color);
+        }
 
-/* TITLE OVERLAY */
-.card h3 {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
-  margin: 0;
-  font-size: 14px;
-  z-index: 2;
-}
+        .img-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+        }
 
-/* overlay gradient */
-.card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-}
+        .card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
-a {
-  text-decoration: none;
-  color: white;
-}
+        /* BADGE "CHƯA ĐỌC" */
+        .badge-unread {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 2;
+            text-transform: uppercase;
+            box-shadow: 0 2px 8px rgba(255, 62, 62, 0.5);
+        }
 
-/* mobile */
-@media (max-width: 600px) {
-  .card img {
-    height: 180px;
-  }
-}
-</style>
+        /* Ẩn badge khi đã đọc */
+        .is-read .badge-unread {
+            display: none;
+        }
+
+        .card-info {
+            padding: 15px;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        footer {
+            background: #111;
+            padding: 40px 5%;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .contact-box a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+            #manga-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+            .img-container { height: 210px; }
+        }
+    </style>
 </head>
-
 <body>
 
-<h1 class="title">📚 Manga của VincentNG295</h1>
+<header>
+    <h1>VINCENT MANGA</h1>
+    <p>Thư viện truyện tranh cá nhân của VincentNG295</p>
+</header>
 
-<div id="manga-list"></div>
+<div class="container">
+    <div id="manga-list"></div>
+</div>
+
+<footer>
+    <p>© 2026 VincentNG295 Library</p>
+    <div class="contact-box">
+        📩 Contact: <a href="mailto:thevi917@gmail.com">thevi917@gmail.com</a>
+    </div>
+</footer>
 
 <script>
+// 1. Lấy danh sách đã đọc từ LocalStorage
+let readList = JSON.parse(localStorage.getItem('readManga')) || [];
+
+function markAsRead(slug) {
+    if (!readList.includes(slug)) {
+        readList.push(slug);
+        localStorage.setItem('readManga', JSON.stringify(readList));
+    }
+}
+
 fetch('list_manga.json')
   .then(res => res.json())
   .then(data => {
     const container = document.getElementById('manga-list');
-
+    
     data.forEach(manga => {
-      const card = document.createElement('div');
-      card.className = 'card';
+      const isRead = readList.includes(manga.slug);
+      const card = document.createElement('a');
+      card.href = `reader.html?slug=${manga.slug}`;
+      card.className = `card ${isRead ? 'is-read' : ''}`;
+      
+      // Khi click vào thẻ, lưu vào danh sách đã đọc
+      card.onclick = () => markAsRead(manga.slug);
 
       card.innerHTML = `
-        <a href="reader.html?slug=${manga.slug}">
-          <img src="${manga.cover}" loading="lazy">
-          <h3>${manga.title}</h3>
-        </a>
+          <div class="img-container">
+            <span class="badge-unread">Chưa đọc</span>
+            <img src="${manga.cover}" alt="${manga.title}" loading="lazy">
+          </div>
+          <div class="card-info">
+            <h3>${manga.title}</h3>
+          </div>
       `;
-
       container.appendChild(card);
     });
   })
   .catch(err => {
-    document.body.innerHTML += "<p style='padding:20px'>Không load được list_manga</p>";
+    document.getElementById('manga-list').innerHTML = "<p>Lỗi tải danh sách truyện.</p>";
   });
 </script>
 
