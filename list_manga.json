@@ -10,23 +10,28 @@
     "cover": "manga/bi_mat_cua_mot_cong_ty/001.jpg"
   },
   {
-    "title": "Bí thuật tán gái",
-    "slug": "bi_thuat_tan_gai",
-    "cover": "manga/bi_thuat_tan_gai/001.png"
-  },
-  {
     "title": "Ngọc và bí mật tuổi teen",
     "slug": "ngoc_va_bi_mat_tuoi_teen",
     "cover": "manga/ngoc_va_bi_mat_tuoi_teen/001.png"
   },
   {
-    "title": "Hai người cha và đứa con",
-    "slug": "hai_nguoi_cha_va_dua_con",
-    "cover": "manga/hai_nguoi_cha_va_dua_con/FB_IMG_1776438618692.jpg"
+    "title": "Bí thuật tán gái",
+    "slug": "bi_thuat_tan_gai",
+    "cover": "manga/bi_thuat_tan_gai/001.png"
   },
   {
     "title": "Group thập bát cộng",
     "slug": "group_thap_bat_cong",
     "cover": "manga/group_thap_bat_cong/FB_IMG_1776434612075.jpg"
+  },
+  {
+    "title": "Noi Am Nhac Dua Ta Gap Nhau",
+    "slug": "noi_am_nhac_dua_ta_gap_nhau",
+    "cover": "manga/noi_am_nhac_dua_ta_gap_nhau/1777360889472.png"
+  },
+  {
+    "title": "Hai người cha và đứa con",
+    "slug": "hai_nguoi_cha_va_dua_con",
+    "cover": "manga/hai_nguoi_cha_va_dua_con/FB_IMG_1776438618692.jpg"
   }
 ]
