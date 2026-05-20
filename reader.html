@@ -174,23 +174,116 @@ const container = document.getElementById('reader');
 const progressBar = document.getElementById('progress-bar');
 const titleDisplay = document.getElementById('manga-title');
 
+// --- CẤU HÌNH INDEXEDDB ---
+const DB_NAME = "MangaCacheDB";
+const DB_VERSION = 1;
+const STORE_NAME = "images";
+let db = null;
+
+// Khởi tạo IndexedDB trả về một Promise
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME);
+            }
+        };
+
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            resolve(db);
+        };
+
+        request.onerror = (e) => reject("Không thể mở IndexedDB: " + e.target.error);
+    });
+}
+
+// Lấy ảnh từ IndexedDB
+function getCacheImage(key) {
+    return new Promise((resolve) => {
+        if (!db) return resolve(null);
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+// Lưu ảnh vào IndexedDB
+function setCacheImage(key, blob) {
+    if (!db) return;
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    store.put(blob, key);
+}
+
+// --- XỬ LÝ TẢI VÀ HIỂN THỊ ẢNH ---
+async function loadImage(slug, pageFile) {
+    const cacheKey = `${slug}/${pageFile}`;
+    const targetUrl = `manga/${slug}/${pageFile}`;
+    
+    // Tạo thẻ img sẵn sàng đưa vào DOM
+    const img = document.createElement('img');
+    img.alt = "Manga Page";
+    img.onload = () => {
+        img.classList.add("loaded");
+        // Hủy liên kết Object URL sau khi ảnh đã tải xong để giải phóng bộ nhớ RAM
+        if (img.src.startsWith('blob:')) {
+            img.addEventListener('load', () => URL.revokeObjectURL(img.src), { once: true });
+        }
+    };
+
+    try {
+        // 1. Kiểm tra bộ nhớ đệm
+        const cachedBlob = await getCacheImage(cacheKey);
+        
+        if (cachedBlob) {
+            // Có dữ liệu cũ -> Chuyển blob thành URL hiển thị luôn
+            img.src = URL.createObjectURL(cachedBlob);
+        } else {
+            // 2. Chưa có bộ nhớ đệm -> Thực hiện tải từ server
+            const response = await fetch(targetUrl);
+            if (!response.ok) throw new Error("Mạng có sự cố khi tải ảnh");
+            const blob = await response.blob();
+            
+            // Lưu dữ liệu blob vào IndexedDB cho lần sau
+            setCacheImage(cacheKey, blob);
+            
+            // Hiển thị ra màn hình
+            img.src = URL.createObjectURL(blob);
+        }
+    } catch (error) {
+        console.error("Lỗi xử lý ảnh:", error);
+        // Phương án dự phòng nếu fetch lỗi hoặc DB hỏng: cố thử tải trực tiếp bằng URL gốc
+        img.src = targetUrl;
+    }
+    
+    container.appendChild(img);
+}
+
+// --- CHƯƠNG TRÌNH CHÍNH ---
 if (!slug) {
     container.innerHTML = "<div style='padding:50px; text-align:center'>❌ Không tìm thấy mã truyện!</div>";
 } else {
-    fetch(`manga/${slug}/info.json`)
-    .then(res => res.json())
-    .then(data => {
+    // Chạy đồng thời: Khởi tạo DB và lấy cấu trúc file json của truyện
+    Promise.all([
+        initDB().catch(err => console.warn(err)), // Nếu lỗi DB vẫn cho đọc truyện online thường
+        fetch(`manga/${slug}/info.json`).then(res => {
+            if (!res.ok) throw new Error();
+            return res.json();
+        })
+    ])
+    .then(([_, data]) => {
         document.title = "Đọc " + data.title + " | VincentNG295";
         titleDisplay.innerText = data.title;
 
+        // Tiến hành xử lý tuần tự từng trang truyện
         data.pages.forEach(p => {
-            const img = document.createElement('img');
-            img.src = `manga/${slug}/${p}`;
-            img.loading = "lazy";
-            img.alt = "Manga Page";
-            
-            img.onload = () => img.classList.add("loaded");
-            container.appendChild(img);
+            loadImage(slug, p);
         });
     })
     .catch(err => {
@@ -202,7 +295,7 @@ if (!slug) {
 window.onscroll = function() {
     let winScroll = document.body.scrollTop || document.documentElement.scrollTop;
     let height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-    let scrolled = (winScroll / height) * 100;
+    let scrolled = height > 0 ? (winScroll / height) * 100 : 0;
     progressBar.style.width = scrolled + "%";
 
     // Hiện nút back to top

@@ -47,6 +47,13 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 30px;
+            transition: opacity 0.3s ease;
+        }
+
+        /* TRẠNG THÁI CHỜ ĐỒNG BỘ */
+        #manga-list.is-loading {
+            opacity: 0.3;
+            pointer-events: none;
         }
 
         .card {
@@ -71,12 +78,19 @@
             position: relative;
             width: 100%;
             height: 280px;
+            background: #202020; /* Khung nền chờ ảnh */
         }
 
         .card img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .card img.loaded {
+            opacity: 1;
         }
 
         /* BADGE "CHƯA ĐỌC" */
@@ -98,6 +112,11 @@
         /* Ẩn badge khi đã đọc */
         .is-read .badge-unread {
             display: none;
+        }
+        
+        /* Làm mờ nhẹ card đã đọc để tăng tính Cosmetic phân loại */
+        .is-read img.loaded {
+            opacity: 0.6;
         }
 
         .card-info {
@@ -139,7 +158,9 @@
 </header>
 
 <div class="container">
-    <div id="manga-list"></div>
+    <div id="manga-list" class="is-loading">
+        <p style="text-align: center; grid-column: 1/-1; color: var(--text-sub);">Đang đồng bộ thư viện dữ liệu...</p>
+    </div>
 </div>
 
 <footer>
@@ -150,9 +171,145 @@
 </footer>
 
 <script>
-// 1. Lấy danh sách đã đọc từ LocalStorage
-let readList = JSON.parse(localStorage.getItem('readManga')) || [];
+let readList = [];
+let isDatabaseReady = false;
 
+// --- CẤU HÌNH CƠ SỞ DỮ LIỆU INDEXEDDB (Chung database với reader.html) ---
+const DB_NAME = "MangaCacheDB";
+const DB_VERSION = 1;
+const STORE_NAME = "images";
+let db = null;
+
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            resolve(db);
+        };
+        request.onerror = (e) => reject("IndexedDB error: " + e.target.error);
+    });
+}
+
+function getCacheImage(key) {
+    return new Promise((resolve) => {
+        if (!db) return resolve(null);
+        const transaction = db.transaction(STORE_NAME, "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+function setCacheImage(key, blob) {
+    if (!db) return;
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    store.put(blob, key);
+}
+
+// --- HÀM XỬ LÝ LẤY ẢNH BÌA TỪ CACHE HOẶC SERVER ---
+async function setCardCover(imgElement, coverPath) {
+    // cacheKey đồng bộ định dạng với trang đọc truyện: "slug/tên-file-ảnh"
+    const cacheKey = `cover/${coverPath}`;
+    
+    imgElement.onload = () => {
+        imgElement.classList.add("loaded");
+        if (imgElement.src.startsWith('blob:')) {
+            imgElement.addEventListener('load', () => URL.revokeObjectURL(imgElement.src), { once: true });
+        }
+    };
+
+    try {
+        const cachedBlob = await getCacheImage(cacheKey);
+        if (cachedBlob) {
+            // Lấy từ IndexedDB ra nếu đã có cache
+            imgElement.src = URL.createObjectURL(cachedBlob);
+        } else {
+            // Chưa có cache -> Nạp thẳng bằng link thường trước để tối ưu tốc độ hiển thị mắt người
+            imgElement.src = coverPath;
+            
+            // Chạy ngầm việc tải blob và cất vào IndexedDB cho lần sau
+            fetch(coverPath)
+                .then(res => {
+                    if (res.ok) return res.blob();
+                    throw new Error();
+                })
+                .then(blob => setCacheImage(cacheKey, blob))
+                .catch(e => console.warn("Không thể tải ngầm cache cho ảnh bìa:", cacheKey));
+        }
+    } catch (err) {
+        // Dự phòng khi lỗi DB
+        imgElement.src = coverPath;
+    }
+}
+
+// HÀM ĐỒNG BỘ NỀN TẢNG (Engine Core)
+async function initMangaLibrary() {
+    const container = document.getElementById('manga-list');
+    
+    try {
+        // 1. Ép hệ thống đồng bộ dữ liệu local trước
+        const localData = localStorage.getItem('readManga');
+        readList = localData ? JSON.parse(localData) : [];
+        
+        // Khởi tạo IndexedDB song song
+        await initDB().catch(err => console.warn(err));
+        
+        // 2. Chờ fetch danh sách cấu trúc truyện về hoàn tất
+        const response = await fetch('list_manga.json');
+        if (!response.ok) throw new Error("Mạng không phản hồi cấu trúc JSON");
+        
+        const mangaData = await response.json();
+        
+        // 3. Xóa trạng thái loading, dọn sạch khung chứa
+        container.innerHTML = "";
+        container.classList.remove('is-loading');
+        
+        // 4. Render đồng bộ toàn bộ mảng dữ liệu sạch
+        mangaData.forEach(manga => {
+            const isRead = readList.includes(manga.slug);
+            const card = document.createElement('a');
+            card.href = `reader.html?slug=${manga.slug}`;
+            card.className = `card ${isRead ? 'is-read' : ''}`;
+            
+            // Hàm lưu trạng thái khi click
+            card.onclick = () => markAsRead(manga.slug);
+
+            card.innerHTML = `
+                <div class="img-container">
+                    <span class="badge-unread">Chưa đọc</span>
+                    <img id="cover-${manga.slug}" alt="${manga.title}">
+                </div>
+                <div class="card-info">
+                    <h3>${manga.title}</h3>
+                </div>
+            `;
+            container.appendChild(card);
+            
+            // Gọi hàm xử lý nạp ảnh bìa thông minh
+            const imgTarget = document.getElementById(`cover-${manga.slug}`);
+            setCardCover(imgTarget, manga.cover);
+        });
+
+        isDatabaseReady = true;
+        console.log("[Library Engine] Thư viện đồng bộ thành công!");
+
+    } catch (err) {
+        console.error("[Library Engine] Lỗi khởi tạo đồng bộ:", err);
+        container.innerHTML = `<p style="text-align: center; grid-column: 1/-1; color: var(--primary-color);">Lỗi tải danh sách truyện hoặc đồng bộ bộ nhớ thất bại.</p>`;
+        container.classList.remove('is-loading');
+    }
+}
+
+// Hàm ghi nhận đã đọc dữ liệu
 function markAsRead(slug) {
     if (!readList.includes(slug)) {
         readList.push(slug);
@@ -160,35 +317,8 @@ function markAsRead(slug) {
     }
 }
 
-fetch('list_manga.json')
-  .then(res => res.json())
-  .then(data => {
-    const container = document.getElementById('manga-list');
-    
-    data.forEach(manga => {
-      const isRead = readList.includes(manga.slug);
-      const card = document.createElement('a');
-      card.href = `reader.html?slug=${manga.slug}`;
-      card.className = `card ${isRead ? 'is-read' : ''}`;
-      
-      // Khi click vào thẻ, lưu vào danh sách đã đọc
-      card.onclick = () => markAsRead(manga.slug);
-
-      card.innerHTML = `
-          <div class="img-container">
-            <span class="badge-unread">Chưa đọc</span>
-            <img src="${manga.cover}" alt="${manga.title}" loading="lazy">
-          </div>
-          <div class="card-info">
-            <h3>${manga.title}</h3>
-          </div>
-      `;
-      container.appendChild(card);
-    });
-  })
-  .catch(err => {
-    document.getElementById('manga-list').innerHTML = "<p>Lỗi tải danh sách truyện.</p>";
-  });
+// KÍCH HOẠT VÒNG CHẠY ĐỒNG BỘ NGAY KHI TẢI TRANG
+document.addEventListener("DOMContentLoaded", initMangaLibrary);
 </script>
 
 </body>
