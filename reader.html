@@ -79,14 +79,49 @@
             transition: width 0.2s ease;
         }
 
+        /* ĐANG TẢI TRUYỆN TOÀN TRANG */
+        #loading-overlay {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 60px);
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 98;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        #loading-text {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         /* READER AREA */
         .reader {
-            max-width: 850px; /* Tối ưu cho đọc truyện tranh */
+            max-width: 850px;
             margin: 20px auto 100px auto;
             padding: 0 10px;
             display: flex;
             flex-direction: column;
-            gap: 0; /* Xóa khoảng cách giữa các trang nếu muốn đọc liền mạch */
+            gap: 0;
         }
 
         .reader img {
@@ -94,11 +129,9 @@
             display: block;
             margin-bottom: 5px;
             border-radius: 4px;
-            /* Hiệu ứng loading */
             opacity: 0;
             transform: translateY(20px);
             transition: opacity 0.8s ease, transform 0.8s ease;
-            /* Đặt min-height để giữ chỗ, tránh hiện tượng giật màn hình (layout shift) khi cuộn lúc ảnh đang nạp */
             min-height: 300px; 
             background: rgba(255, 255, 255, 0.02);
         }
@@ -155,10 +188,16 @@
         Quay lại
     </a>
     <div id="manga-title">Đang tải...</div>
-    <div style="width: 80px;"></div> </div>
+    <div style="width: 80px;"></div>
+</div>
 
 <div class="progress-container">
     <div id="progress-bar"></div>
+</div>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">Đang đồng bộ dữ liệu chương...</div>
 </div>
 
 <div class="reader" id="reader"></div>
@@ -178,6 +217,12 @@ const slug = params.get("slug");
 const container = document.getElementById('reader');
 const progressBar = document.getElementById('progress-bar');
 const titleDisplay = document.getElementById('manga-title');
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingText = document.getElementById('loading-text');
+
+// Biến quản lý bộ đếm số lượng trang
+let totalPages = 0;
+let loadedPagesCount = 0;
 
 // --- CẤU HÌNH INDEXEDDB ---
 const DB_NAME = "MangaCacheDB";
@@ -187,28 +232,23 @@ let db = null;
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('[Service Worker] Đăng ký thành công với phạm vi:', reg.scope))
-            .catch(err => console.error('[Service Worker] Đăng ký thất bại:', err));
+        navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
     });
 }
 
 function initDB() {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
         request.onupgradeneeded = (e) => {
             const database = e.target.result;
             if (!database.objectStoreNames.contains(STORE_NAME)) {
                 database.createObjectStore(STORE_NAME);
             }
         };
-
         request.onsuccess = (e) => {
             db = e.target.result;
             resolve(db);
         };
-
         request.onerror = (e) => reject("Không thể mở IndexedDB: " + e.target.error);
     });
 }
@@ -231,36 +271,48 @@ function setCacheImage(key, blob) {
     store.put(blob, key);
 }
 
+// --- HÀM KIỂM TRA TIẾN ĐỘ TẢI XONG TOÀN BỘ TRUYỆN ---
+function checkAllPagesLoaded() {
+    loadedPagesCount++;
+    // Cập nhật text hiển thị số lượng trang đã xong thực tế
+    loadingText.innerText = `Đang tải các trang truyện (${loadedPagesCount}/${totalPages})...`;
+    
+    if (loadedPagesCount >= totalPages) {
+        // Tải xong hết -> Ẩn màn hình chờ mượt mà bằng hiệu ứng mờ dần
+        loadingOverlay.style.opacity = "0";
+        setTimeout(() => {
+            loadingOverlay.style.visibility = "hidden";
+        }, 500);
+    }
+}
+
 // --- XỬ LÝ TẢI VÀ HIỂN THỊ ẢNH ---
-// Gỡ bỏ appendChild khỏi hàm async này để chặn lỗi bất đồng bộ đổi vị trí
 async function loadImage(slug, pageFile, imgElement) {
     const cacheKey = `${slug}/${pageFile}`;
     const targetUrl = `manga/${slug}/${pageFile}`;
 
     try {
-        // 1. Kiểm tra bộ nhớ đệm IndexedDB
         const cachedBlob = await getCacheImage(cacheKey);
-        
         if (cachedBlob) {
             imgElement.src = URL.createObjectURL(cachedBlob);
         } else {
-            // 2. Chưa có cache -> Fetch từ server
             const response = await fetch(targetUrl);
-            if (!response.ok) throw new Error("Mạng có sự cố khi tải ảnh");
+            if (!response.ok) throw new Error("Mạng có sự cố");
             const blob = await response.blob();
             
             setCacheImage(cacheKey, blob);
             imgElement.src = URL.createObjectURL(blob);
         }
     } catch (error) {
-        console.error("Lỗi xử lý ảnh:", error);
-        imgElement.src = targetUrl; // Fallback link gốc
+        console.error("Lỗi:", error);
+        imgElement.src = targetUrl;
     }
 }
 
 // --- CHƯƠNG TRÌNH CHÍNH ---
 if (!slug) {
     container.innerHTML = "<div style='padding:50px; text-align:center'>❌ Không tìm thấy mã truyện!</div>";
+    loadingOverlay.style.display = "none";
 } else {
     Promise.all([
         initDB().catch(err => console.warn(err)),
@@ -272,8 +324,16 @@ if (!slug) {
     .then(([_, data]) => {
         document.title = "Đọc " + data.title + " | VincentNG295";
         titleDisplay.innerText = data.title;
+        
+        // Thiết lập tổng số trang của chương
+        totalPages = data.pages.length;
+        loadingText.innerText = `Đang tải các trang truyện (0/${totalPages})...`;
 
-        // BƯỚC ĐỔI MỚI: Tạo sẵn khung ảnh theo đúng thứ tự JSON trước
+        if (totalPages === 0) {
+            loadingOverlay.style.display = "none";
+            return;
+        }
+
         data.pages.forEach(p => {
             const img = document.createElement('img');
             img.alt = "Manga Page";
@@ -281,20 +341,27 @@ if (!slug) {
             
             img.onload = () => {
                 img.classList.add("loaded");
+                
+                // Gọi hàm đếm tiến trình khi có một ảnh load xong
+                checkAllPagesLoaded();
+                
                 if (img.src.startsWith('blob:')) {
                     img.addEventListener('load', () => URL.revokeObjectURL(img.src), { once: true });
                 }
             };
-            
-            // Đưa vào giao diện ngay lập tức để giữ đúng vị trí số trang (1, 2, 3...)
-            container.appendChild(img);
 
-            // Đưa thẻ img đã cố định vị trí vào hàm xử lý nạp data ngầm
+            img.onerror = () => {
+                // Trường hợp ảnh bị lỗi liên kết vẫn tính vào tiến trình để tránh đơ màn hình chờ
+                checkAllPagesLoaded();
+            };
+            
+            container.appendChild(img);
             loadImage(slug, p, img);
         });
     })
     .catch(err => {
         container.innerHTML = "<div style='padding:50px; text-align:center'>😰 Lỗi tải dữ liệu truyện. Vui lòng thử lại sau!</div>";
+        loadingOverlay.style.display = "none";
     });
 }
 
