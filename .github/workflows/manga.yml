@@ -6,6 +6,8 @@ on:
       - 'manga/**'
     branches:
       - main
+  workflow_dispatch:
+  
 
 jobs:
   build:
